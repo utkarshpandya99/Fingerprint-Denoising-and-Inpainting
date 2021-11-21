@@ -237,7 +237,7 @@ void segmentation(uint8_t *image, int width, int height){
 //new normalisation
 void norm(uint8_t *image, int width, int height){
     int hist[256] = { 0 };
-    int row, col, min, max, sum, percent=0.0001;
+    int row, col, min, max, sum, percent=1;
 
     for(row=0;row<height;row++){
         for(col=0;col<width;col++){
@@ -258,7 +258,7 @@ void norm(uint8_t *image, int width, int height){
             break;
         }
     }
-    printf("\nmin %d max %d",min,max);
+    //printf("\nmin %d max %d",min,max);
     for(row=0;row<height;row++){
         for(col=0;col<width;col++){
             if(image[row*width+col]<min){
@@ -275,7 +275,7 @@ void norm(uint8_t *image, int width, int height){
 }
 
 //gabor
-void gabor(double *image, double *normim, double *orientim, int width, int height){
+void gabor(double *image, double *normim, double *orientim, double *freqim, double *new_im, int *finalim, int width, int height){
     int row, col; 
     double stddv, mean, sum=0;
     double thresh=0.1;
@@ -405,7 +405,9 @@ void gabor(double *image, double *normim, double *orientim, int width, int heigh
         sizek++;
     }
 
-    double GKernel[sizek][sizek], fy[sizek][sizek], fx[sizek][sizek];
+    double *GKernel=(double*)malloc(sizek*sizek*sizeof(double));
+    double *fy=(double*)malloc(sizek*sizek*sizeof(double));
+    double *fx=(double*)malloc(sizek*sizek*sizeof(double));
     double sigma = 1.0;
     double r, s = 2.0 * gradientsigma * gradientsigma;
  
@@ -416,28 +418,28 @@ void gabor(double *image, double *normim, double *orientim, int width, int heigh
     for (x = -(sizek/2); x <= (sizek/2); x++) {
         for (y = -(sizek/2); y <= (sizek/2); y++) {
             r = sqrt(x * x + y * y);
-            GKernel[x + (sizek/2)][y + (sizek/2)] = (exp(-(r * r) / s)) / (M_PI * s);
-            gsum += GKernel[x + (sizek/2)][y + (sizek/2)];
+            GKernel[(x + (sizek/2))*sizek+(y + (sizek/2))] = (exp(-(r * r) / s)) / (PI * s);
+            gsum += GKernel[(x + (sizek/2))*sizek+(y + (sizek/2))];
         }
     }
     int i,j;
     // normalising the Kernel
     for (i = 0; i < sizek; ++i){
         for (j = 0; j < sizek; ++j){
-            GKernel[i][j] /= gsum;
+            GKernel[i*sizek+j] /= gsum;
         }
     }
 
     for (i=0;i<sizek;i++){
         for(j=0;j<sizek;j++){
             if (i==0){
-                fy[i][j]=GKernel[i+1][j]-GKernel[i][j];
+                fy[i*sizek+j]=GKernel[(i+1)*sizek+j]-GKernel[i*sizek+j];
             }
             else if (i==(sizek-1)){
-                fy[i][j]=GKernel[i][j]-GKernel[i-1][j];
+                fy[i*sizek+j]=GKernel[i*sizek+j]-GKernel[(i-1)*sizek+j];
             }
             else{
-                fy[i][j]=(GKernel[i+1][j]-GKernel[i-1][j])/2.0;
+                fy[i*sizek+j]=(GKernel[(i+1)*sizek+j]-GKernel[(i-1)*sizek+j])/2.0;
             }
         }
     }
@@ -445,13 +447,13 @@ void gabor(double *image, double *normim, double *orientim, int width, int heigh
     for (i=0;i<sizek;i++){
         for(j=0;j<sizek;j++){
             if (j==0){
-                fx[i][j]=GKernel[i][j+1]-GKernel[i][j];
+                fx[i*sizek+j]=GKernel[i*sizek+(j+1)]-GKernel[i*sizek+j];
             }
             else if (j==(sizek-1)){
-                fx[i][j]=GKernel[i][j]-GKernel[i][j-1];
+                fx[i*sizek+j]=GKernel[i*sizek+j]-GKernel[i*sizek+(j-1)];
             }
             else{
-                fx[i][j]=(GKernel[i][j+1]-GKernel[i][j-1])/2.0;
+                fx[i*sizek+j]=(GKernel[i*sizek+(j+1)]-GKernel[i*sizek+(j-1)])/2.0;
             }
         }
     }
@@ -482,8 +484,8 @@ void gabor(double *image, double *normim, double *orientim, int width, int heigh
             double sumy=0.0;
             for (i=-(sizek/2);i<=(sizek/2);i++){
                 for(j=-(sizek/2);j<=(sizek/2);j++){
-                    sumx+=paddednormim[(row+i+(sizek/2))*Gkerwidth+(col+j+(sizek/2))]*fx[i+(sizek/2)][j+(sizek/2)];
-                    sumy+=paddednormim[(row+i+(sizek/2))*Gkerwidth+(col+j+(sizek/2))]*fy[i+(sizek/2)][j+(sizek/2)];
+                    sumx+=paddednormim[(row+i+(sizek/2))*Gkerwidth+(col+j+(sizek/2))]*fx[(i+(sizek/2))*sizek+(j+(sizek/2))];
+                    sumy+=paddednormim[(row+i+(sizek/2))*Gkerwidth+(col+j+(sizek/2))]*fy[(i+(sizek/2))*sizek+(j+(sizek/2))];
                 }
             }
             Gx[row*width+col]=sumx;
@@ -511,7 +513,7 @@ void gabor(double *image, double *normim, double *orientim, int width, int heigh
         sizek++;
     }
 
-    double GKernelblock[sizek][sizek];
+    double *GKernelblock=(double*)malloc(sizek*sizek*sizeof(double));
     sigma = 1.0;
     s = 2.0 * blocksigma * blocksigma;
  
@@ -521,15 +523,15 @@ void gabor(double *image, double *normim, double *orientim, int width, int heigh
     for (x = -(sizek/2); x <= (sizek/2); x++) {
         for (y = -(sizek/2); y <= (sizek/2); y++) {
             r = sqrt(x * x + y * y);
-            GKernelblock[x + (sizek/2)][y + (sizek/2)] = (exp(-(r * r) / s)) / (M_PI * s);
-            gsum += GKernelblock[x + (sizek/2)][y + (sizek/2)];
+            GKernelblock[(x + (sizek/2))*sizek+(y + (sizek/2))] = (exp(-(r * r) / s)) / (PI * s);
+            gsum += GKernelblock[(x + (sizek/2))*sizek+(y + (sizek/2))];
         }
     }
 
     // normalising the Kernel
     for (i = 0; i < sizek; ++i){
         for (j = 0; j < sizek; ++j){
-            GKernelblock[i][j] /= gsum;
+            GKernelblock[i*sizek+j] /= gsum;
         }
     }
     Gkerwidth=width+sizek-1;
@@ -580,9 +582,9 @@ void gabor(double *image, double *normim, double *orientim, int width, int heigh
             double sumxy=0.0;
             for (i=-(sizek/2);i<=(sizek/2);i++){
                 for(j=-(sizek/2);j<=(sizek/2);j++){
-                    sumxx+=paddedGxx[(row+i+(sizek/2))*Gkerwidth+(col+j+(sizek/2))]*GKernelblock[i+(sizek/2)][j+(sizek/2)];
-                    sumyy+=paddedGyy[(row+i+(sizek/2))*Gkerwidth+(col+j+(sizek/2))]*GKernelblock[i+(sizek/2)][j+(sizek/2)];
-                    sumxy+=paddedGxy[(row+i+(sizek/2))*Gkerwidth+(col+j+(sizek/2))]*GKernelblock[i+(sizek/2)][j+(sizek/2)];
+                    sumxx+=paddedGxx[(row+i+(sizek/2))*Gkerwidth+(col+j+(sizek/2))]*GKernelblock[(i+(sizek/2))*sizek+(j+(sizek/2))];
+                    sumyy+=paddedGyy[(row+i+(sizek/2))*Gkerwidth+(col+j+(sizek/2))]*GKernelblock[(i+(sizek/2))*sizek+(j+(sizek/2))];
+                    sumxy+=paddedGxy[(row+i+(sizek/2))*Gkerwidth+(col+j+(sizek/2))]*GKernelblock[(i+(sizek/2))*sizek+(j+(sizek/2))];
                 }
             }
             Gxx[row*width+col]=sumxx;
@@ -609,7 +611,7 @@ void gabor(double *image, double *normim, double *orientim, int width, int heigh
         sizek++;
     }
 
-    double GKernelorient[sizek][sizek];
+    double *GKernelorient=(double*)malloc(sizek*sizek*sizeof(double));
     sigma = 1.0;
     s = 2.0 * orientsmoothsigma * orientsmoothsigma;
  
@@ -619,15 +621,15 @@ void gabor(double *image, double *normim, double *orientim, int width, int heigh
     for (x = -(sizek/2); x <= (sizek/2); x++) {
         for (y = -(sizek/2); y <= (sizek/2); y++) {
             r = sqrt(x * x + y * y);
-            GKernelorient[x + (sizek/2)][y + (sizek/2)] = (exp(-(r * r) / s)) / (M_PI * s);
-            gsum += GKernelorient[x + (sizek/2)][y + (sizek/2)];
+            GKernelorient[(x + (sizek/2))*sizek+(y + (sizek/2))] = (exp(-(r * r) / s)) / (PI * s);
+            gsum += GKernelorient[(x + (sizek/2))*sizek+(y + (sizek/2))];
         }
     }
 
     // normalising the Kernel
     for (i = 0; i < sizek; ++i){
         for (j = 0; j < sizek; ++j){
-            GKernelorient[i][j] /= gsum;
+            GKernelorient[i*sizek+j] /= gsum;
         }
     }
     Gkerwidth=width+sizek-1;
@@ -671,8 +673,8 @@ void gabor(double *image, double *normim, double *orientim, int width, int heigh
             double sumcos=0.0;
             for (i=-(sizek/2);i<=(sizek/2);i++){
                 for(j=-(sizek/2);j<=(sizek/2);j++){
-                    sumsin+=paddedsin2theta[(row+i+(sizek/2))*Gkerwidth+(col+j+(sizek/2))]*GKernelorient[i+(sizek/2)][j+(sizek/2)];
-                    sumcos+=paddedcos2theta[(row+i+(sizek/2))*Gkerwidth+(col+j+(sizek/2))]*GKernelorient[i+(sizek/2)][j+(sizek/2)];
+                    sumsin+=paddedsin2theta[(row+i+(sizek/2))*Gkerwidth+(col+j+(sizek/2))]*GKernelorient[(i+(sizek/2))*sizek+(j+(sizek/2))];
+                    sumcos+=paddedcos2theta[(row+i+(sizek/2))*Gkerwidth+(col+j+(sizek/2))]*GKernelorient[(i+(sizek/2))*sizek+(j+(sizek/2))];
                 }
             }
             sin2theta[row*width+col]=sumsin;
@@ -685,52 +687,352 @@ void gabor(double *image, double *normim, double *orientim, int width, int heigh
     for(row=0;row<height;row++){
         for(col=0;col<width;col++){
             orientim[row*width+col] = (PI/2.0) + (atan2(sin2theta[row*width+col],cos2theta[row*width+col])/2.0);
-            printf("%lf ",orientim[row*width+col]);
+            //printf("%lf ",orientim[row*width+col]);
         }
-        printf("\n");
+        //printf("\n");
     }
 
 
     //ridge frequency
-    int blocksizef = 38;
+    const int blocksizef = 38;
     int windsizef = 5;
     int minwavelength = 5;
     int maxwavelength = 15;
     
-    double *freqim = (double*)malloc(height*width*sizeof(double));
+    for(row=0;row<height;row++){
+        for(col=0;col<width;col++){
+            freqim[row*width+col]=0.0;
+        }
+    }
     for(row=0;row<height-blocksizef;row+=blocksizef){
         for(col=0;col<width-blocksizef;col+=blocksizef){
-            double blockimagef[blocksizef][blocksizef];
-            double orientblock[blocksizef][blocksizef];
+            double *blockimagef=(double*)malloc(blocksizef*blocksizef*sizeof(double));
+            double *orientblock=(double*)malloc(blocksizef*blocksizef*sizeof(double));
             double sinorient, cosorient, orientangle;
 
             for (i=0;i<blocksizef;i++){
                 for(j=0;j<blocksizef;j++){
-                    blockimagef[i][j]=normim[(row+i)*width+(col+j)];
-                    orientblock[i][j]=orientim[(row+i)*width+(col+j)];
+                    blockimagef[i*blocksizef+j]=normim[(row+i)*width+(col+j)];
+                    orientblock[i*blocksizef+j]=orientim[(row+i)*width+(col+j)];
                 }
             }
 
-            sinorient=0.0;
-            cosorient=0.0;
+            // sinorient=0.0;
+            // cosorient=0.0;
+            // for (i=0;i<blocksizef;i++){
+            //     for(j=0;j<blocksizef;j++){
+            //         sinorient+=sin(orientblock[i][j]);
+            //         cosorient+=cos(orientblock[i][j]);
+            //     }
+            // }
+            // sinorient/=(double)(blocksizef*blocksizef);
+            // cosorient/=(double)(blocksizef*blocksizef);
+            // orientangle = atan2(sinorient, cosorient)/2;
+
+            // for (i=0;i<blocksizef;i++){
+            //     for(j=0;j<blocksizef;j++){
+            //         freqim[(row+i)*width+(col+j)]=somthing;
+            //     }
+            // }
+
+            double *proj=(double*)malloc(blocksizef*sizeof(double));
             for (i=0;i<blocksizef;i++){
-                for(j=0;j<blocksizef;j++){
-                    sinorient+=sin(orientblock[i][j]);
-                    cosorient+=cos(orientblock[i][j]);
+                proj[i]=0.0;
+            }
+            for (i=0;i<blocksizef;i++){
+                for (j=0;j<blocksizef;j++){
+                    proj[j]+=blockimagef[i*blocksizef+j];
                 }
             }
-            sinorient/=(double)(blocksizef*blocksizef);
-            cosorient/=(double)(blocksizef*blocksizef);
-            orientangle = atan2(sinorient, cosorient)/2;
-
-
+            double *proj2=(double*)malloc(blocksizef*sizeof(double));
             for (i=0;i<blocksizef;i++){
-                for(j=0;j<blocksizef;j++){
-                    freqim[(row+i)*width+(col+j)]=somthing;
+                double dilation;
+                if((i<(windsizef/2))){
+                    dilation=proj[0];
+                    for(j=1;j<=(i+(windsizef/2));j++){
+                        if (proj[j]>dilation){
+                            dilation=proj[j];
+                        }
+                    }
+                    dilation++;
+                    proj2[i]=dilation;
+                }
+                else if(i>=(blocksizef-(windsizef/2))){
+                    dilation=proj[i-(windsizef/2)];
+                    for(j=(i-(windsizef/2)+1);j<blocksizef;j++){
+                        if (proj[j]>dilation){
+                            dilation=proj[j];
+                        }
+                    }
+                    dilation++;
+                    proj2[i]=dilation;
+                }
+                else{
+                    dilation=proj[i-(windsizef/2)];
+                    for(j=(i-(windsizef/2)+1);j<=(i+(windsizef/2));j++){
+                        if(proj[j]>dilation){
+                            dilation=proj[j];
+                        } 
+                    }
+                    dilation++;
+                    proj2[i]=dilation;
+                }
+            }
+            double *temp=(double*)malloc(blocksizef*sizeof(double));
+            for(i=0;i<blocksizef;i++){
+                temp[i]=proj2[i]-proj[i];
+                if (temp[i]<0){
+                    temp[i]*=(-1);
+                }
+            }
+            double projmean=0;
+            for(i=0;i<blocksizef;i++){
+                projmean+=proj[i];
+            }
+            projmean/=(double)blocksizef;
+            double peak_thresh=2.0;
+            bool *maxpts=(bool*)malloc(blocksizef*sizeof(bool));
+            int colsmaxind=0;
+            for(i=0;i<blocksizef;i++){
+                if ((temp[i]<peak_thresh) && (proj[i]>projmean)){
+                    colsmaxind++;
+                    maxpts[i]=true;
+                }
+                else{
+                    maxpts[i]=false;
+                }
+            }
+            double *maxind=(double*)malloc(colsmaxind*sizeof(double));
+            j=0;
+            for(i=0;i<blocksizef;i++){
+                if (maxpts[i]==true){
+                    maxind[j]=i;
+                    j++;
+                }
+            }
+
+            if(colsmaxind<2){
+                for (i=0;i<blocksizef;i++){
+                    for(j=0;j<blocksizef;j++){
+                        freqim[(row+i)*width+(col+j)]=0;
+                    }
+                }
+            }
+            else{
+                double wavelength = (maxind[colsmaxind-1]-maxind[0])/(colsmaxind-1);
+                if ((wavelength>=(double)minwavelength) && (wavelength<=(double)maxwavelength)){
+                    for (i=0;i<blocksizef;i++){
+                        for(j=0;j<blocksizef;j++){
+                            freqim[(row+i)*width+(col+j)]=1/wavelength;
+                        }
+                    }
+                }
+                else{
+                    for (i=0;i<blocksizef;i++){
+                        for(j=0;j<blocksizef;j++){
+                            freqim[(row+i)*width+(col+j)]=0;
+                        }
+                    }
                 }
             }
         }
     }
+    for(row=0;row<height;row++){
+        for(col=0;col<width;col++){
+            if(mask[row*width+col]==false){
+                freqim[row*width+col]=0.0;
+            } 
+        }
+    }
+    double meanfreq=0.0;
+    int countfreq=0;
+    for(row=0;row<height;row++){
+        for(col=0;col<width;col++){
+            if(freqim[row*width+col]>0){
+                meanfreq+=freqim[row*width+col];
+                countfreq++;
+            } 
+        }
+    }
+    meanfreq/=(double)(countfreq);
+    for(row=0;row<height;row++){
+        for(col=0;col<width;col++){
+            if(mask[row*width+col]==false){
+                freqim[row*width+col]=0.0;
+            } 
+            else{
+                freqim[row*width+col]=meanfreq;
+                //printf("%lf ",freqim[row*width+col]);
+            }
+        }
+    }
+    //printf("hi");
+    //ridgefilter / gabor filter
+    double angleinc = 3.0;
+    double kx=0.65;
+    double ky=0.65;
+    for(row=0;row<height;row++){
+        for(col=0;col<width;col++){
+            new_im[row*width+col]=0.0;
+        }
+    }
+    meanfreq=(double)(round(meanfreq*100)/100);
+    double sigmax=1.0/meanfreq*kx;
+    double sigmay=1.0/meanfreq*ky;
+    const int gabor_size = round(3*sigmay);
+    const int gabfilter_rows=2*gabor_size+1;
+    const int gabfilter_cols=2*gabor_size+1;
+
+    double *meshx=(double*)malloc(gabfilter_rows*gabfilter_cols*sizeof(double));
+    double *meshy=(double*)malloc(gabfilter_rows*gabfilter_cols*sizeof(double));
+    double *reffilter=(double*)malloc(gabfilter_rows*gabfilter_cols*sizeof(double));
+    for(i=0;i<gabfilter_rows;i++){
+        for(j=0;j<gabfilter_cols;j++){
+            meshx[i*gabfilter_rows+j]=j-gabor_size;
+            meshy[i*gabfilter_rows+j]=i-gabor_size;
+            reffilter[i*gabfilter_rows+j]=exp(-(  (pow(meshx[i*gabfilter_rows+j],2)/(sigmax*sigmax)) + (pow(meshy[i*gabfilter_rows+j],2)/(sigmay*sigmay)) )) * cos(2*PI*meanfreq*meshx[i*gabfilter_rows+j]);
+        }
+    }
+
+    double *gabor_filter = (double *)malloc((180/angleinc)*gabfilter_rows*gabfilter_cols*sizeof(double));
+    double *rotatedmat=(double*)malloc(gabfilter_rows*gabfilter_cols*sizeof(double));
+    double *rotind=(double*)malloc(gabfilter_rows*gabfilter_cols*3*sizeof(double));
+    int angle;
+    for(angle=0;angle<round(180/angleinc);angle++){
+        const int rotindsize=gabfilter_cols*gabfilter_rows;
+        const int rot_rows=gabfilter_rows;
+        const int rot_cols=gabfilter_cols;
+        double ang=-(angle*angleinc+90);
+
+        for(i=0;i<gabfilter_rows;i++){
+            for(j=0;j<gabfilter_cols;j++){
+                rotind[(i*rot_rows+j)*3+0]=round(i*cos(ang)-j*sin(ang));
+                rotind[(i*rot_rows+j)*3+1]=round(i*sin(ang)+j*cos(ang));
+                rotind[(i*rot_rows+j)*3+2]=reffilter[i*gabfilter_rows+j];
+            }
+        }
+        //printf("hi");
+
+        for(i=0;i<rotindsize;i++){
+            rotind[i*3+0]=rotind[i*3+0]-(rotind[(int)round(rotindsize/2)*3+0]-(gabfilter_rows/2));
+            rotind[i*3+1]=rotind[i*3+1]-(rotind[(int)round(rotindsize/2)*3+1]-(gabfilter_cols/2));
+        }
+        //printf("hi");
+        for(i=0;i<gabfilter_rows;i++){
+            for(j=0;j<gabfilter_cols;j++){
+                rotatedmat[i*gabfilter_rows+j]=0.0;
+            }
+        }
+        //printf("hi");
+        for(i=0;i<rotindsize;i++){
+            const int rot_i=rotind[i*3+0];
+            const int rot_j=rotind[i*3+1];
+            if(rot_i>=0 && rot_i<gabfilter_rows && rot_j>=0 && rot_j<gabfilter_cols){
+                rotatedmat[rot_i*gabfilter_rows+rot_j]=rotind[i*3+2];
+            }
+        }
+        //printf("hi");
+        for(i=0;i<gabfilter_rows;i++){
+            for(j=0;j<gabfilter_cols;j++){
+                gabor_filter[angle*gabfilter_cols*gabfilter_rows + i*gabfilter_cols + j] = rotatedmat[i*gabfilter_rows+j];
+            }
+        }
+    }
+    int maxorient_index = round(180/angleinc);
+    for(row=0;row<height;row++){
+        for(col=0;col<width;col++){
+            orientim[row*width+col]= round((orientim[row*width+col]/PI) *(180/angleinc));
+            //printf("%lf ", orientim[row*width+col]);
+            if (((int)orientim[row*width+col])<1){
+                orientim[row*width+col]+=maxorient_index;
+            }
+            if (((int)orientim[row*width+col])>maxorient_index){
+                orientim[row*width+col]-=maxorient_index;
+            }
+        }
+    }
+    //printf("hi");
+    int final_size = gabor_size;
+    int *gaborind = (int*)malloc(width*height*3*sizeof(int));
+    for(row=0;row<height;row++){
+        for(col=0;col<width;col++){
+            gaborind[(row*width+col)*3+0]=row;
+            gaborind[(row*width+col)*3+1]=col;
+            gaborind[(row*width+col)*3+2]=255;
+        }
+    }
+    //printf("%d",final_size);
+    for(row=0;row<(height-final_size);row++){
+        //printf("%d ", row);
+        for(col=final_size;col<(width-final_size);col++){
+            //printf("hi");
+            if (freqim[row*width+col]>0){
+                int ori_ang=orientim[row*width+col];
+                int ori_ang_l, ori_ang_h, ang_i;
+                if(ori_ang<10){
+                    ori_ang_l=0;
+                }
+                else{
+                    ori_ang_l=ori_ang-10;
+                }
+                if(ori_ang>=50){
+                    ori_ang_h=59;
+                }
+                else{
+                    ori_ang_h=ori_ang+10;
+                }
+                
+                for(ang_i=0;ang_i<60;ang_i+=10){
+                    double gabor_sum=0.0;
+                    for(i=-(final_size);i<=final_size;i++){
+                        for(j=-(final_size);j<=final_size;j++){
+                            gabor_sum+=normim[(row+i)*width+(col+j)]*gabor_filter[ (ang_i*gabfilter_rows*gabfilter_cols) + ((gabor_size+i)*gabfilter_cols) + (gabor_size+j)];
+                        }
+                        // if (((int)orientim[row*width+col])<30){
+                        //     gabor_sum+=normim[(row+i)*width+(col+j)]*gabor_filter[ (0*gabfilter_rows*gabfilter_cols) + ((gabor_size+i)*gabfilter_cols) + (gabor_size+j)];
+                        // }
+                        // else{
+                        //     gabor_sum+=normim[(row+i)*width+(col+j)]*gabor_filter[ (30*gabfilter_rows*gabfilter_cols) + ((gabor_size+i)*gabfilter_cols) + (gabor_size+j)];
+                        // }
+                    }
+                    new_im[row*width+col]=gabor_sum;
+                    if(gabor_sum<-3){
+                        gaborind[(row*width+col)*3+0]=row;
+                        gaborind[(row*width+col)*3+1]=col;
+                        gaborind[(row*width+col)*3+2]=0;
+                    }
+                }
+                //printf("%lf ", new_im[row*width+col]);
+            }
+            
+        }
+    }
+
+    for(row=0;row<height;row++){
+        for(col=0;col<width;col++){
+            finalim[(gaborind[(row*width+col)*3+0])*width+(gaborind[(row*width+col)*3+1])]=gaborind[(row*width+col)*3+2];
+        }
+    }
+
+    int matlbwindow=1;
+    for(row=matlbwindow;row<(height-matlbwindow);row++){
+        for(col=matlbwindow;col<(width-matlbwindow);col++){
+            int matlbsum=0;
+            for(i=row-matlbwindow;i<=(row+matlbwindow);i++){
+                for(j=col-matlbwindow;j<=(col+matlbwindow);j++){
+                    if (finalim[i*width+col]==0){
+                        matlbsum++;
+                    }
+                }
+            }
+            if(matlbsum>=4){
+                finalim[row*width+col]=0;
+            }
+        }
+    }
+    
+
+
 }
 
 int main(){
@@ -744,6 +1046,9 @@ int main(){
     double *normim = (double*)malloc(width*height*sizeof(double));
     double *im = (double*)malloc(width*height*sizeof(double));
     double *orientim = (double*)malloc(height*width*sizeof(double));
+    double *freqim = (double*)malloc(height*width*sizeof(double));
+    double *new_im=(double*)malloc(width*height*sizeof(double));
+    int *finalim = (int*)malloc(width*height*sizeof(int));
 
     //storing data in uint8_t for simpler math from unsigned char after reading pgm image
     for (i=0;i<width*height;i++){
@@ -756,18 +1061,18 @@ int main(){
     norm(imagedata,width,height);
 
     //segmentation
-    segmentation(imagedata,width,height);
+    //segmentation(imagedata,width,height);
 
     for (i=0;i<width*height;i++){
         im[i] = (double)imagedata[i];
     }
     //gabor filter
-    gabor(im,normim,orientim,width,height);
+    gabor(im,normim,orientim,freqim,new_im,finalim,width,height);
 
 
     //storing values in the unsigned char for writing pgm image
     for (i=0;i<width*height;i++){
-        image->data[i].gray = (unsigned char)orientim[i];
+        image->data[i].gray = (unsigned char)(finalim[i]);
     }
     writePPM("Arch_1_O_v1_gabor.pgm",image);
     printf("Press any key...");
