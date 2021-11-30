@@ -17,6 +17,10 @@ So, the only function we are having problem in the accuracy is the image rotatio
 The Gprof analysis is also attached here as Gprof_results.txt as a reference.
 
 The serial code in fingerprintDenoisingAndInpaintingSerial.c is commented extensively so that every part of the code
-is explained in as much as possible in simple words. 
+is explained in as much as possible in simple words.
+
+The Fingerprint_naive_parallel.cu is the naive parallel implementation in CUDA C. The functions that are selected for
+parallelization are gaborconvolution, ndconvolutionsincos and ndconvolutionorient due to their high time consumption 
+evident in Gprof.
 
 Regards. Thanks for reading.
