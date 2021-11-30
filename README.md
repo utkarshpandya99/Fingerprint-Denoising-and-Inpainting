@@ -1,5 +1,23 @@
 # Fingerprint-Denoising-and-Inpainting
 
+Data:
+
+
+
+In Serial folder : 
+
+Fingerprint.c
+fingerprintDenoisingAndInpaintingSerial.c
+
+
+In Parallel folder :
+
+Fingerprint_naive_parallel.cu
+
+
+
+Decription:
+
 The fingerprint.c is the initial file in which the trials were done to obtain results.
 
 The fingerprintDenoisingAndInpaintingSerial.c is the final commented code file with every for loop inculcated as function 
