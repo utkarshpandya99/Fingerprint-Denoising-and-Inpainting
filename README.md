@@ -2,7 +2,8 @@
 
 Data:
 
-
+Arch_1_O_v1.png
+Arch_1_O_v1.pgm
 
 In Serial folder : 
 
